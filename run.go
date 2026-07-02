@@ -30,17 +30,17 @@ those items appended as arguments. With no COMMAND, regroup the input: split
 each line into whitespace-separated fields and emit them, at most MAX-ARGS
 per output line (default one field per line).`
 
-// init replaces urfave/cli's default --version/-v flag with a --version-only
-// flag, freeing the single-letter -v for command flags while still exposing
-// the injected build version.
-func init() {
-	cli.VersionFlag = &cli.BoolFlag{Name: "version", Usage: "print version information and exit"}
-}
+// buildVersion is the binary's build version threaded from main's ldflags
+// target (`var version`) into the CLI. It is an alias, not a defined type:
+// cli.Command.Version is a plain string and must be wired as the bare
+// `version` identifier (no conversion) for --version to stay verifiably
+// bound to the ldflags symbol.
+type buildVersion = string
 
 // run builds and executes the xargs CLI against the injected version, I/O, and
 // filesystem, returning the process exit code. xargs reads its items from
 // stdin; the filesystem is injected for a uniform, testable wiring shape.
-func run(version string, args []string, stdin io.Reader, stdout, stderr io.Writer, _ afero.Fs) int {
+func run(version buildVersion, args []string, stdin io.Reader, stdout, stderr io.Writer, _ afero.Fs) int {
 	cmd := newCommand(version, stdin, stdout)
 	cmd.Writer = stdout
 	cmd.ErrWriter = stderr
@@ -51,7 +51,12 @@ func run(version string, args []string, stdin io.Reader, stdout, stderr io.Write
 	return 0
 }
 
-func newCommand(version string, stdin io.Reader, stdout io.Writer) *cli.Command {
+func newCommand(version buildVersion, stdin io.Reader, stdout io.Writer) *cli.Command {
+	// Replace urfave/cli's default --version/-v flag with a --version-only
+	// flag, freeing the single-letter -v for command flags while still
+	// exposing the injected build version. Done here rather than in func
+	// init so construction stays explicit.
+	cli.VersionFlag = &cli.BoolFlag{Name: "version", Usage: "print version information and exit"}
 	return &cli.Command{
 		Name:            name,
 		Version:         version,
